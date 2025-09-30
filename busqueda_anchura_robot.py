@@ -170,23 +170,33 @@ def is_goal(state: State, goal: State) -> bool:
 # -------------------------------------------------------------
 
 def bfs(grid: List[List[int]], start: State, goal: State):
+    """Ejecuta una búsqueda en anchura clásica sobre el espacio de estados del robot.
+
+    Se devuelve una tupla con:
+        * La lista de nodos desde el origen hasta la meta (inclusive) si hay solución.
+        * El contenido restante de la frontera al terminar.
+        * El número de estados explorados.
+    """
+
     start_node = Node(state=start, parent=None, op=None, depth=0, g=0)
 
     if is_goal(start, goal):
         return [start_node], [], 1  # camino trivial, frontera vacía, 1 explorado (o 0)
 
     frontier: deque[Node] = deque([start_node])
+    frontier_states: set[Tuple[int, int, int]] = {
+        (start.state.r, start.state.c, start.state.o)
+    }
     explored: set[Tuple[int, int, int]] = set()
-
-    # Para reconstruir camino cuando encontremos el objetivo
-    goal_node: Optional[Node] = None
 
     while frontier:
         current = frontier.popleft()
+        frontier_states.remove((current.state.r, current.state.c, current.state.o))
         explored.add((current.state.r, current.state.c, current.state.o))
 
         for op, s_next, cost in successors(grid, current):
-            if (s_next.r, s_next.c, s_next.o) in explored:
+            state_key = (s_next.r, s_next.c, s_next.o)
+            if state_key in explored or state_key in frontier_states:
                 continue
 
             child = Node(
@@ -197,22 +207,11 @@ def bfs(grid: List[List[int]], start: State, goal: State):
                 g=current.g + cost,
             )
 
-            # Para evitar duplicados fuertes en la frontera, podemos llevar un set
-            # con estados presentes en frontera. Alternativamente, comprobar aquí antes de añadir.
-            already_in_frontier = any(
-                (n.state.r, n.state.c, n.state.o) == (s_next.r, s_next.c, s_next.o)
-                for n in frontier
-            )
-            if already_in_frontier:
-                continue
-
             if is_goal(s_next, goal):
-                goal_node = child
-                # AUNQUE BFS podría seguir para recopilar estadísticas, 
-                # normalmente devolvemos en cuanto encontramos la primera meta
-                return reconstruct_path(goal_node), list(frontier), len(explored)
+                return reconstruct_path(child), list(frontier), len(explored)
 
             frontier.append(child)
+            frontier_states.add(state_key)
 
     # Sin solución: devolver el "mejor esfuerzo" (ninguno) y cifras
     return [], list(frontier), len(explored)
